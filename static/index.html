@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Поддержка, которая не бесит</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --border:#2a2f3a;
+  --text:#e8eaf0; --muted:#9aa2b1; --accent:#6c8dff;
+  --ok:#3ecf8e; --warn:#f5a623; --danger:#f5615a; --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+#app{max-width:980px;margin:0 auto;padding:16px;min-height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 4px 16px}
+header h1{font-size:18px;margin:0;font-weight:700}
+header .sub{color:var(--muted);font-size:12.5px}
+.tabs{display:flex;gap:6px;background:var(--panel2);padding:4px;border-radius:10px}
+.tab{padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none}
+.tab.active{background:var(--accent);color:#fff}
+.view{display:none;flex:1;min-height:0}
+.view.active{display:flex;flex-direction:column;gap:14px}
+.layout{display:grid;grid-template-columns:1fr 260px;gap:14px;flex:1;min-height:0}
+@media (max-width:760px){.layout{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+#chatWrap{display:flex;flex-direction:column;min-height:420px}
+#messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;max-height:60vh}
+.msg{max-width:82%;padding:10px 13px;border-radius:14px;font-size:14.5px;line-height:1.45;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:var(--panel2);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg.sys{align-self:center;color:var(--muted);font-size:12px;background:transparent}
+.inputRow{display:flex;gap:8px;margin-top:10px}
+#userInput{flex:1;padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14.5px;resize:none}
+button.primary{background:var(--accent);color:#fff;border:none;padding:0 18px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600}
+button.primary:disabled{opacity:.5;cursor:default}
+button.ghost{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px}
+.stepActions{display:flex;gap:8px;margin-top:6px}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge.high{background:rgba(245,97,90,.15);color:var(--danger)}
+.badge.medium{background:rgba(245,166,35,.15);color:var(--warn)}
+.badge.low{background:rgba(62,207,142,.15);color:var(--ok)}
+.sidebar h3{font-size:12.5px;text-transform:uppercase;color:var(--muted);margin:0 0 8px;letter-spacing:.5px}
+.factRow{font-size:13px;margin-bottom:6px}
+.factRow b{color:var(--muted)}
+.sla{background:rgba(245,97,90,.1);border:1px solid rgba(245,97,90,.3);border-radius:10px;padding:10px;font-size:12.5px;margin-top:10px}
+#ticketList{display:flex;flex-direction:column;gap:10px}
+.ticket{border:1px solid var(--border);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.ticket .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ticket .title{font-weight:600;font-size:14px}
+.ticket .meta{color:var(--muted);font-size:12px;margin-top:2px}
+.ticket details{margin-top:8px;font-size:13px}
+.ticket summary{cursor:pointer;color:var(--accent)}
+.empty{color:var(--muted);text-align:center;padding:40px 0;font-size:13.5px}
+.typing{color:var(--muted);font-size:13px;align-self:flex-start;padding:4px 8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div><h1>🛠️ Поддержка, которая не бесит</h1><div class="sub">Виртуальный помощник для сложных обращений</div></div>
+    <div class="tabs">
+      <div class="tab active" data-tab="chat">Чат</div>
+      <div class="tab" data-tab="dash">Панель специалиста</div>
+    </div>
+  </header>
+
+  <div class="view active" id="view-chat">
+    <div class="layout">
+      <div class="card" id="chatWrap">
+        <div id="messages"></div>
+        <div class="inputRow">
+          <textarea id="userInput" rows="1" placeholder="Опишите проблему своими словами..."></textarea>
+          <button class="primary" id="sendBtn">Отправить</button>
+        </div>
+      </div>
+      <div class="card sidebar">
+        <h3>Что мы поняли</h3>
+        <div id="factsBox"><div class="factRow" style="color:var(--muted)">Пока ничего — опишите проблему</div></div>
+        <div id="slaBox"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-dash">
+    <div class="card">
+      <h3 style="margin-top:0">Обращения, переданные специалисту</h3>
+      <div id="ticketList"><div class="empty">Пока нет переданных обращений</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let history = []; // {role:'user'|'assistant', text}
+let ctx = { problem_summary:null, service:null, urgency:null, known_facts:[], resolved:false, escalated:false };
+let stepCount = 0;
+
+const messagesEl = document.getElementById('messages');
+const factsBox = document.getElementById('factsBox');
+const slaBox = document.getElementById('slaBox');
+const input = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('view-'+t.dataset.tab).classList.add('active');
+  if(t.dataset.tab==='dash') loadTickets();
+}));
+
+function addMsg(role, text){
+  const d=document.createElement('div');
+  d.className='msg '+role;
+  d.textContent=text;
+  messagesEl.appendChild(d);
+  messagesEl.scrollTop=messagesEl.scrollHeight;
+  return d;
+}
+function addTyping(){
+  const d=document.createElement('div');
+  d.className='typing'; d.textContent='печатает…'; d.id='typingIndicator';
+  messagesEl.appendChild(d); messagesEl.scrollTop=messagesEl.scrollHeight;
+}
+function removeTyping(){ const t=document.getElementById('typingIndicator'); if(t) t.remove(); }
+
+function renderFacts(){
+  factsBox.innerHTML='';
+  if(!ctx.problem_summary && ctx.known_facts.length===0){
+    factsBox.innerHTML='<div class="factRow" style="color:var(--muted)">Пока ничего — опишите проблему</div>';
+  } else {
+    if(ctx.problem_summary) factsBox.innerHTML += `<div class="factRow"><b>Проблема:</b> ${esc(ctx.problem_summary)}</div>`;
+    if(ctx.service) factsBox.innerHTML += `<div class="factRow"><b>Область:</b> ${esc(ctx.service)}</div>`;
+    if(ctx.urgency) factsBox.innerHTML += `<div class="factRow"><b>Срочность:</b> <span class="badge ${ctx.urgency}">${urgLabel(ctx.urgency)}</span></div>`;
+    ctx.known_facts.forEach(f=> factsBox.innerHTML += `<div class="factRow">• ${esc(f)}</div>`);
+  }
+  slaBox.innerHTML = ctx.urgency==='high' && !ctx.resolved ? `<div class="sla">⚡ Срочное обращение — при необходимости можно сразу передать специалисту, не дожидаясь всех уточнений.</div>` : '';
+}
+function urgLabel(u){return u==='high'?'высокая':u==='medium'?'средняя':'низкая';}
+function esc(s){return (s+'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+async function callBackend(){
+  const res = await fetch('/api/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({history})
+  });
+  if(!res.ok){ throw new Error('backend error ' + res.status); }
+  return res.json();
+}
+
+async function ask(){
+  const text = input.value.trim();
+  if(!text) return;
+  addMsg('user', text);
+  history.push({role:'user', text});
+  input.value='';
+  sendBtn.disabled=true;
+  addTyping();
+  try{
+    const parsed = await callBackend();
+    removeTyping();
+    handleResponse(parsed);
+  }catch(err){
+    removeTyping();
+    addMsg('bot', 'Не удалось получить ответ ассистента. Проверьте, что сервер запущен и задан ANTHROPIC_API_KEY.');
+  }
+  sendBtn.disabled=false;
+}
+
+function handleResponse(p){
+  ctx.problem_summary = p.problem_summary || ctx.problem_summary;
+  ctx.service = p.service || ctx.service;
+  ctx.urgency = p.urgency || ctx.urgency;
+  if(Array.isArray(p.known_facts)) ctx.known_facts = p.known_facts;
+  renderFacts();
+
+  const botText = p.message || '...';
+  const bubble = addMsg('bot', botText);
+  history.push({role:'assistant', text: JSON.stringify(p)});
+
+  if(p.action==='propose_step'){
+    stepCount++;
+    const actions=document.createElement('div');
+    actions.className='stepActions';
+    actions.innerHTML = `<button class="ghost" data-ok="1">✅ Помогло</button><button class="ghost" data-ok="0">❌ Не помогло</button>`;
+    bubble.after(actions);
+    actions.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      const ok=b.dataset.ok==='1';
+      actions.remove();
+      const reply = ok ? 'Да, помогло!' : 'Нет, не помогло.';
+      addMsg('user', reply);
+      history.push({role:'user', text:reply});
+      autoAsk();
+    }));
+  } else if(p.action==='escalate'){
+    ctx.escalated = true;
+    escalate(p.escalation_reason || '');
+  } else if(p.action==='resolved'){
+    ctx.resolved = true;
+  }
+}
+
+async function autoAsk(){
+  sendBtn.disabled=true; addTyping();
+  try{
+    const parsed = await callBackend();
+    removeTyping();
+    handleResponse(parsed);
+  }catch(err){ removeTyping(); addMsg('bot','Ошибка ассистента, попробуйте написать ещё раз.'); }
+  sendBtn.disabled=false;
+}
+
+async function escalate(reason){
+  const payload = {
+    problem_summary: ctx.problem_summary,
+    service: ctx.service,
+    urgency: ctx.urgency || 'medium',
+    known_facts: ctx.known_facts,
+    reason: reason,
+    full_log: history
+  };
+  addMsg('sys', '📨 Обращение передано специалисту. Вам не нужно повторять историю — весь контекст уже у него.');
+  try{
+    await fetch('/api/tickets', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+  }catch(e){}
+}
+
+sendBtn.addEventListener('click', ask);
+input.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); ask(); }});
+
+async function loadTickets(){
+  const list = document.getElementById('ticketList');
+  let tickets = [];
+  try{
+    const res = await fetch('/api/tickets');
+    tickets = await res.json();
+  }catch(e){}
+  const order = {high:0, medium:1, low:2};
+  tickets.sort((a,b)=>(order[a.urgency]??1)-(order[b.urgency]??1));
+  if(!tickets.length){ list.innerHTML='<div class="empty">Пока нет переданных обращений</div>'; return; }
+  list.innerHTML = tickets.map(tk=>`
+    <div class="ticket">
+      <div class="top">
+        <div class="title">${esc(tk.problem_summary||'Обращение')}</div>
+        <span class="badge ${tk.urgency||'medium'}">${urgLabel(tk.urgency||'medium')}</span>
+      </div>
+      <div class="meta">${esc(tk.service||'—')} · ${new Date(tk.createdAt).toLocaleString('ru-RU')}</div>
+      <details>
+        <summary>Полный контекст для специалиста</summary>
+        <div style="margin-top:8px">
+          <b>Причина эскалации:</b> ${esc(tk.reason||'—')}<br>
+          <b>Известные факты:</b> ${(tk.known_facts||[]).map(esc).join('; ')||'—'}<br>
+          <b>История диалога:</b>
+          <div style="margin-top:6px;white-space:pre-wrap;color:var(--muted)">${(tk.full_log||[]).map(h=>{
+            if(h.role==='user') return '🧑 '+esc(h.text);
+            try{ const j=JSON.parse(h.text); return '🤖 '+esc(j.message||''); }catch(e){ return ''; }
+          }).filter(Boolean).join('\n')}</div>
+        </div>
+      </details>
+    </div>`).join('');
+}
+
+addMsg('bot','Привет! Расскажите своими словами, что случилось — не нужно подбирать точные термины.');
+</script>
+</body>
+</html>
